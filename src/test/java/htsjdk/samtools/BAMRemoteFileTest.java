@@ -118,7 +118,7 @@ public class BAMRemoteFileTest extends HtsjdkTest {
             final int coord2 = generator.nextInt(maxCoordinate + 1);
             final int startPos = Math.min(coord1, coord2);
             final int endPos = Math.max(coord1, coord2);
-            System.out.println("Testing query " + refName + ":" + startPos + "-" + endPos + " ...");
+            verbose("Testing query " + refName + ":" + startPos + "-" + endPos + " ...");
             try {
                 runQueryTest(bamFile, refName, startPos, endPos, true);
                 runQueryTest(bamFile, refName, startPos, endPos, false);

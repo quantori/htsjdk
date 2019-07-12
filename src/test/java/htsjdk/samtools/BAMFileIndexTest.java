@@ -355,7 +355,7 @@ public class BAMFileIndexTest extends HtsjdkTest {
             final String refName = referenceNames.get(interval.referenceIndex);
             final int startPos = interval.start;
             final int endPos = interval.end;
-            System.out.println("Testing query " + refName + ":" + startPos + "-" + endPos + " ...");
+            verbose("Testing query " + refName + ":" + startPos + "-" + endPos + " ...");
             try {
                 runQueryTest(bamFile, refName, startPos, endPos, true);
                 runQueryTest(bamFile, refName, startPos, endPos, false);
