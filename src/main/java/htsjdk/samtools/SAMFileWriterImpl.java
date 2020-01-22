@@ -23,12 +23,12 @@
  */
 package htsjdk.samtools;
 
+import htsjdk.samtools.util.CloseableIterator;
 import htsjdk.samtools.util.ProgressLoggerInterface;
 import htsjdk.samtools.util.SortingCollection;
 
 import java.io.File;
 import java.io.StringWriter;
-import java.util.function.Supplier;
 
 /**
  * Base class for implementing SAM writer with any underlying format.
@@ -207,8 +207,9 @@ public abstract class SAMFileWriterImpl implements SAMFileWriter
         try {
             if (!isClosed) {
                 if (alignmentSorter != null) {
-                    try {
-                        for (final SAMRecord alignment : alignmentSorter) {
+                    try (CloseableIterator<SAMRecord> alignmentSorterIterator = alignmentSorter.iterator()){
+                        while(alignmentSorterIterator.hasNext()) {
+                            final SAMRecord alignment = alignmentSorterIterator.next();
                             writeAlignment(alignment);
                             if (progressLogger != null)
                                 progressLogger.record(alignment);

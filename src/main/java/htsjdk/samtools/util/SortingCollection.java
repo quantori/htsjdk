@@ -24,6 +24,7 @@
 package htsjdk.samtools.util;
 
 import htsjdk.samtools.Defaults;
+import htsjdk.samtools.util.async.AsyncConsumer;
 
 import java.io.File;
 import java.io.IOException;
@@ -33,14 +34,9 @@ import java.lang.reflect.Array;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collection;
-import java.util.Comparator;
-import java.util.Iterator;
-import java.util.List;
-import java.util.NoSuchElementException;
-import java.util.TreeSet;
+import java.util.*;
+import java.util.concurrent.ArrayBlockingQueue;
+import java.util.concurrent.BlockingQueue;
 
 /**
  * Collection to which many records can be added.  After all records are added, the collection can be
@@ -249,7 +245,7 @@ public class SortingCollection<T> implements Iterable<T> {
             final Path f = newTempFile();
             try (OutputStream os
                          = tempStreamFactory.wrapTempOutputStream(Files.newOutputStream(f), Defaults.BUFFER_SIZE)) {
-                this.codec.setOutputStream(os);
+                 this.codec.setOutputStream(os);
                 for (int i = 0; i < this.numRecordsInRam; ++i) {
                     this.codec.encode(ramRecords[i]);
                     // Facilitate GC
@@ -501,20 +497,48 @@ public class SortingCollection<T> implements Iterable<T> {
      */
     class MergingIterator implements CloseableIterator<T> {
         private final TreeSet<PeekFileRecordIterator> queue;
+        private final int CONSUMER_THREADS = 2;
+        private final int CONSUMER_BATCH_SIZE = 4;
+        private final AsyncConsumer<RequestObject<T>> consumer = makeConsumers(files.size(),CONSUMER_THREADS, CONSUMER_BATCH_SIZE);
 
         MergingIterator() {
             this.queue = new TreeSet<>(new PeekFileRecordIteratorComparator());
             int n = 0;
             log.debug(String.format("Creating merging iterator from %d files", files.size()));
             int suggestedBufferSize = checkMemoryAndAdjustBuffer(files.size());
+
             for (final Path f : files) {
-                final FileRecordIterator it = new FileRecordIterator(f, suggestedBufferSize);
+                final FileRecordIterator it = new FileRecordIterator(f, suggestedBufferSize, consumer);
                 if (it.hasNext()) {
                     this.queue.add(new PeekFileRecordIterator(it, n++));
                 } else {
                     it.close();
                 }
             }
+        }
+
+        private AsyncConsumer<RequestObject<T>> makeConsumers(int queueSize, int nThreads, int batchSize) {
+            return AsyncConsumer.getInstance(request -> {
+                        Queue<T> batchQueue = new LinkedList<>();
+                        boolean isLastBacth = false;
+                        for (int i = 0; i < batchSize; i++) {
+                            T record = request.codec.decode();
+                            if (record == null) {
+                                isLastBacth = true;
+                                break;
+                            }
+                            batchQueue.add(record);
+                        }
+                        try {
+                            if (request.result.size() > 2) {
+                                int s = request.result.size();
+                            }
+                            request.result.put(new Batch<>(batchQueue, isLastBacth));
+                        } catch (InterruptedException e) {
+                            e.printStackTrace();
+                        }
+                    },
+                    queueSize, nThreads);
         }
 
         // Since we need to open and buffer all temp files in the sorting collection at once it is important
@@ -582,6 +606,12 @@ public class SortingCollection<T> implements Iterable<T> {
                 final PeekFileRecordIterator it = this.queue.pollFirst();
                 ((CloseableIterator<T>) it.getUnderlyingIterator()).close();
             }
+
+            try {
+                consumer.finish();
+            } catch (InterruptedException e) {
+                throw new RuntimeException(e);
+            }
         }
     }
 
@@ -593,14 +623,19 @@ public class SortingCollection<T> implements Iterable<T> {
         private final InputStream is;
         private final Codec<T> codec;
         private T currentRecord = null;
+        private final BlockingQueue<Batch<T>> values = new ArrayBlockingQueue<Batch<T>>(2);
+        private final AsyncConsumer<RequestObject<T>> consumer;
+        private Batch<T> currentBatch;
 
-        FileRecordIterator(final Path file, final int bufferSize) {
+        FileRecordIterator(final Path file, final int bufferSize, AsyncConsumer<RequestObject<T>> consumer) {
             this.file = file;
+            this.consumer = consumer;
             try {
                 this.is = Files.newInputStream(file);
                 this.codec = SortingCollection.this.codec.clone();
                 this.codec.setInputStream(tempStreamFactory.wrapTempInputStream(this.is, bufferSize));
                 advance();
+                prepareValuesAsync();
             } catch (IOException e) {
                 throw new RuntimeIOException(e);
             }
@@ -617,7 +652,7 @@ public class SortingCollection<T> implements Iterable<T> {
                 throw new NoSuchElementException();
             }
             final T ret = this.currentRecord;
-            advance();
+            takeValue();
             return ret;
         }
 
@@ -630,12 +665,69 @@ public class SortingCollection<T> implements Iterable<T> {
             this.currentRecord = this.codec.decode();
         }
 
+        private void takeValue() {
+            try {
+                if (this.currentBatch == null || (currentBatch.getQueue().isEmpty() && !currentBatch.isLastBatch())) {
+                    currentBatch = this.values.take();
+                    if (!currentBatch.isLastBatch()) {
+                        prepareValuesAsync();
+                    }
+                }
+                this.currentRecord = currentBatch.getQueue().poll();
+            } catch (InterruptedException e) {
+                throw new RuntimeException(e);
+            }
+        }
+
+        private void prepareValuesAsync() {
+            try {
+                consumer.put(new RequestObject<T>(values, this.codec));
+            } catch (InterruptedException e) {
+                throw new RuntimeException(e);
+            }
+        }
+
         @Override
         public void close() {
             CloserUtil.close(this.is);
         }
     }
 
+    private static class RequestObject<T> {
+        private final BlockingQueue<Batch<T>> result;
+        private final Codec<T> codec;
+
+        public RequestObject(BlockingQueue<Batch<T>> result, Codec<T> codec) {
+            this.result = result;
+            this.codec = codec;
+        }
+
+        public BlockingQueue<Batch<T>> getResult() {
+            return result;
+        }
+
+        public Codec<T> getCodec() {
+            return codec;
+        }
+    }
+
+    private static class Batch<T> {
+        private final Queue<T> queue;
+        private final boolean lastBatch;
+
+        public Batch(Queue<T> queue, boolean lastBatch) {
+            this.queue = queue;
+            this.lastBatch = lastBatch;
+        }
+
+        public Queue<T> getQueue() {
+            return queue;
+        }
+
+        public boolean isLastBatch() {
+            return lastBatch;
+        }
+    }
 
     /**
      * Just a typedef
