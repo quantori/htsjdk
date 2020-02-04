@@ -163,14 +163,20 @@ public class BlockCompressedInputStreamTest extends HtsjdkTest {
         return new Object[][]{
                 // set the default InflaterFactory to a CountingInflaterFactory
                 {(CheckedExceptionInputStreamSupplier) () -> new BlockCompressedInputStream(new FileInputStream(tempFile), false), expectedOutputSupplier, 4, countingInflaterFactory},
+                {(CheckedExceptionInputStreamSupplier) () -> new SequentialBlockCompressedInputStream(new FileInputStream(tempFile), false), expectedOutputSupplier, 4, countingInflaterFactory},
                 {(CheckedExceptionInputStreamSupplier) () -> new BlockCompressedInputStream(tempFile), expectedOutputSupplier, 4, countingInflaterFactory},
                 {(CheckedExceptionInputStreamSupplier) () -> new AsyncBlockCompressedInputStream(tempFile), expectedOutputSupplier, 4, countingInflaterFactory},
+                {(CheckedExceptionInputStreamSupplier) () -> new SequentialBlockCompressedInputStream(tempFile), expectedOutputSupplier, 4, countingInflaterFactory},
                 {(CheckedExceptionInputStreamSupplier) () -> new BlockCompressedInputStream(new URL("http://broadinstitute.github.io/picard/testdata/index_test.bam")), null, 21, countingInflaterFactory},
+                {(CheckedExceptionInputStreamSupplier) () -> new SequentialBlockCompressedInputStream(new URL("http://broadinstitute.github.io/picard/testdata/index_test.bam")), null, 21, countingInflaterFactory},
                 // provide a CountingInflaterFactory explicitly
                 {(CheckedExceptionInputStreamSupplier) () -> new BlockCompressedInputStream(new FileInputStream(tempFile), false, countingInflaterFactory), expectedOutputSupplier, 4, null},
+                {(CheckedExceptionInputStreamSupplier) () -> new SequentialBlockCompressedInputStream(new FileInputStream(tempFile), false, countingInflaterFactory), expectedOutputSupplier, 4, null},
                 {(CheckedExceptionInputStreamSupplier) () -> new BlockCompressedInputStream(tempFile, countingInflaterFactory), expectedOutputSupplier, 4, null},
                 {(CheckedExceptionInputStreamSupplier) () -> new AsyncBlockCompressedInputStream(tempFile, countingInflaterFactory), expectedOutputSupplier, 4, null},
-                {(CheckedExceptionInputStreamSupplier) () -> new BlockCompressedInputStream(new URL("http://broadinstitute.github.io/picard/testdata/index_test.bam"), countingInflaterFactory), null, 21, null}
+                {(CheckedExceptionInputStreamSupplier) () -> new SequentialBlockCompressedInputStream(tempFile, countingInflaterFactory), expectedOutputSupplier, 4, null},
+                {(CheckedExceptionInputStreamSupplier) () -> new BlockCompressedInputStream(new URL("http://broadinstitute.github.io/picard/testdata/index_test.bam"), countingInflaterFactory), null, 21, null},
+                {(CheckedExceptionInputStreamSupplier) () -> new SequentialBlockCompressedInputStream(new URL("http://broadinstitute.github.io/picard/testdata/index_test.bam"), countingInflaterFactory), null, 21, null}
         };
     }
 

@@ -42,6 +42,8 @@ import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
 import java.util.Arrays;
 
+import static htsjdk.samtools.util.BlockCompressedStreamConstants.MAX_COMPRESSED_BLOCK_SIZE;
+
 /**
  * Utility class for reading BGZF block compressed files.  The caller can treat this file like any other InputStream.
  * It probably is not necessary to wrap this stream in a buffering stream, because there is internal buffering.
@@ -63,7 +65,7 @@ public class BlockCompressedInputStream extends InputStream implements LocationA
 
     private InputStream mStream = null;
     private boolean mIsClosed = false;
-    private SeekableStream mFile = null;
+    private SeekableStream mFile;
     private byte[] mFileBuffer = null;
     private DecompressedBlock mCurrentBlock = null;
     private int mCurrentOffset = 0;
@@ -362,7 +364,6 @@ public class BlockCompressedInputStream extends InputStream implements LocationA
         if (mFile == null) {
             throw new IOException(CANNOT_SEEK_STREAM_MSG);
         }
-
         // Decode virtual file pointer
         // Upper 48 bits is the byte offset into the compressed stream of a
         // block.
@@ -455,10 +456,19 @@ public class BlockCompressedInputStream extends InputStream implements LocationA
     }
 
     private void readBlock() throws IOException {
-        mCurrentBlock = nextBlock(getBufferForReuse(mCurrentBlock));
+        mCurrentBlock = readNextBlock();
         mCurrentOffset = 0;
         checkAndRethrowDecompressionException();
     }
+
+    protected boolean isLastCurrentBlock() {
+        return mCurrentBlock != null && mCurrentBlock.mBlockCompressedSize == 0;
+    }
+
+    protected DecompressedBlock readNextBlock() {
+        return nextBlock(getBufferForReuse(mCurrentBlock));
+    }
+
     /**
      * Reads and decompresses the next block
      * @param bufferAvailableForReuse decompression buffer available for reuse
@@ -467,12 +477,13 @@ public class BlockCompressedInputStream extends InputStream implements LocationA
     protected DecompressedBlock nextBlock(byte[] bufferAvailableForReuse) {
         return processNextBlock(bufferAvailableForReuse);
     }
+
     /**
      * Rethrows an exception encountered during decompression
      * @throws IOException
      */
     private void checkAndRethrowDecompressionException() throws IOException {
-        if (mCurrentBlock.mException != null) {
+        if (mCurrentBlock != null && mCurrentBlock.mException != null) {
             if (mCurrentBlock.mException instanceof IOException) {
                 throw (IOException) mCurrentBlock.mException;
             } else if (mCurrentBlock.mException instanceof RuntimeException) {
@@ -503,7 +514,7 @@ public class BlockCompressedInputStream extends InputStream implements LocationA
      */
     protected DecompressedBlock processNextBlock(byte[] bufferAvailableForReuse) {
         if (mFileBuffer == null) {
-            mFileBuffer = new byte[BlockCompressedStreamConstants.MAX_COMPRESSED_BLOCK_SIZE];
+            mFileBuffer = new byte[MAX_COMPRESSED_BLOCK_SIZE];
         }
         long blockAddress = mStreamOffset;
         try {
@@ -538,13 +549,18 @@ public class BlockCompressedInputStream extends InputStream implements LocationA
 
     private byte[] inflateBlock(final byte[] compressedBlock, final int compressedLength,
             final byte[] bufferAvailableForReuse) throws IOException {
+        return inflateBlock(blockGunzipper, compressedBlock, compressedLength, bufferAvailableForReuse, getSource());
+    }
+
+    static byte[] inflateBlock(final BlockGunzipper blockGunzipper, final byte[] compressedBlock, final int compressedLength,
+                                final byte[] bufferAvailableForReuse, String source) throws IOException {
         final int uncompressedLength = unpackInt32(compressedBlock, compressedLength - 4);
         if (uncompressedLength < 0) {
-            throw new RuntimeIOException(getSource() + " has invalid uncompressedLength: " + uncompressedLength);
+            throw new RuntimeIOException(source + " has invalid uncompressedLength: " + uncompressedLength);
         }
         byte[] buffer = bufferAvailableForReuse;
         if (buffer == null || uncompressedLength != buffer.length) {
-        	// can't reuse the buffer since the size is incorrect
+            // can't reuse the buffer since the size is incorrect
             buffer = new byte[uncompressedLength];
         }
         blockGunzipper.unzipBlock(buffer, compressedBlock, compressedLength);
@@ -556,10 +572,14 @@ public class BlockCompressedInputStream extends InputStream implements LocationA
     }
 
     private int readBytes(final byte[] buffer, final int offset, final int length) throws IOException {
-        if (mFile != null) {
-            return readBytes(mFile, buffer, offset, length);
-        } else if (mStream != null) {
-            return readBytes(mStream, buffer, offset, length);
+        return readBytes(mStream, mFile, buffer, offset, length);
+    }
+
+    static int readBytes(final InputStream stream, final SeekableStream file, final byte[] buffer, final int offset, final int length) throws IOException {
+        if (file != null) {
+            return readBytes(file, buffer, offset, length);
+        } else if (stream != null) {
+            return readBytes(stream, buffer, offset, length);
         } else {
             return 0;
         }
@@ -589,12 +609,12 @@ public class BlockCompressedInputStream extends InputStream implements LocationA
         return bytesRead;
     }
 
-    private int unpackInt16(final byte[] buffer, final int offset) {
+    static int unpackInt16(final byte[] buffer, final int offset) {
         return ((buffer[offset] & 0xFF) |
                 ((buffer[offset+1] & 0xFF) << 8));
     }
 
-    private int unpackInt32(final byte[] buffer, final int offset) {
+    static int unpackInt32(final byte[] buffer, final int offset) {
         return ((buffer[offset] & 0xFF) |
                 ((buffer[offset+1] & 0xFF) << 8) |
                 ((buffer[offset+2] & 0xFF) << 16) |
@@ -653,7 +673,7 @@ public class BlockCompressedInputStream extends InputStream implements LocationA
             }
 
             //if the last block isn't an empty gzip block, check to see if it is a healthy compressed block or if it's corrupted
-            final int bufsize = (int) Math.min(fileSize, BlockCompressedStreamConstants.MAX_COMPRESSED_BLOCK_SIZE);
+            final int bufsize = (int) Math.min(fileSize, MAX_COMPRESSED_BLOCK_SIZE);
             final byte[] bufferArray = new byte[bufsize];
             channel.position(fileSize - bufsize);
             readFully(channel, ByteBuffer.wrap(bufferArray));
@@ -750,6 +770,14 @@ public class BlockCompressedInputStream extends InputStream implements LocationA
             mBlockAddress = blockAddress;
             mBlockCompressedSize = compressedSize;
             mException = exception;
+        }
+
+        public int getCompressedSize() {
+            return mBlockCompressedSize;
+        }
+
+        public boolean isException() {
+            return mException != null;
         }
     }
 }
