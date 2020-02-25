@@ -23,6 +23,9 @@
  */
 package htsjdk.samtools.util;
 
+import htsjdk.samtools.model.CompressedBlock;
+import htsjdk.samtools.model.TempBlock;
+import htsjdk.samtools.util.async.CompressProducer;
 import htsjdk.samtools.util.zip.DeflaterFactory;
 
 import java.io.File;
@@ -115,7 +118,7 @@ public class BlockCompressedOutputStream
     private Path file = null;
     private long mBlockAddress = 0;
     private GZIIndex.GZIIndexer indexer;
-
+    private CompressProducer compressProducer;
 
     // Really a local variable, but allocate once to reduce GC burden.
     private final byte[] singleByteArray = new byte[1];
@@ -242,6 +245,7 @@ public class BlockCompressedOutputStream
         }
         deflater = deflaterFactory.makeDeflater(compressionLevel, true);
         log.debug("Using deflater: " + deflater.getClass().getSimpleName());
+        compressProducer = new CompressProducer(deflater, noCompressionDeflater, crc32, indexer, codec);
     }
 
     /**
@@ -302,7 +306,11 @@ public class BlockCompressedOutputStream
             numBytes -= bytesToWrite;
             assert(numBytes >= 0);
             if (numUncompressedBytes == uncompressedBuffer.length) {
-                deflateBlock();
+                if (compressProducer != null) {
+                    processBlockAsync(new TempBlock(numUncompressedBytes, uncompressedBuffer, compressedBuffer));
+                } else {
+                    processBlock(new TempBlock(numUncompressedBytes, uncompressedBuffer, compressedBuffer));
+                }
             }
         }
     }
@@ -316,7 +324,7 @@ public class BlockCompressedOutputStream
     @Override
     public void flush() throws IOException {
         while (numUncompressedBytes > 0) {
-            deflateBlock();
+            processBlock(new TempBlock(numUncompressedBytes, uncompressedBuffer, compressedBuffer));
         }
         codec.getOutputStream().flush();
     }
@@ -332,6 +340,13 @@ public class BlockCompressedOutputStream
     }
 
     public void close(final boolean writeTerminatorBlock) throws IOException {
+        if (compressProducer != null) {
+            try {
+                compressProducer.close();
+            } catch (InterruptedException e) {
+                throw new RuntimeException("Exception finishing processing by producer", e);
+            }
+        }
         flush();
         // For debugging...
         // if (numberOfThrottleBacks > 0) {
@@ -384,13 +399,43 @@ public class BlockCompressedOutputStream
      * If the entire uncompressedBuffer does not fit in the maximum allowed size, reduce the amount
      * of data to be compressed, and slide the excess down in uncompressedBuffer so it can be picked
      * up in the next deflate event.
-     * @return size of gzip block that was written.
      */
-    private int deflateBlock() {
-        if (numUncompressedBytes == 0) {
-            return 0;
+    private void processBlock(TempBlock block) {
+        CompressedBlock compressedBlock = deflateBlock(block.getBytesToCompress(), block.getUncompressedBuffer(),
+                block.getCompressedBuffer());
+
+        // Clear out from uncompressedBuffer the data that was written
+        numUncompressedBytes = 0;
+
+        writeCompressedBlock(compressedBlock);
+    }
+
+    private void processBlockAsync(TempBlock block) {
+        try {
+            compressProducer.put(block);
+            numUncompressedBytes = 0;
+        } catch (InterruptedException e) {
+            throw new RuntimeException(e);
         }
-        final int bytesToCompress = numUncompressedBytes;
+    }
+
+    private void writeCompressedBlock(CompressedBlock compressedBlock) {
+        final int bytesToCompress = compressedBlock.getBytesToCompress();
+        final int totalBlockSize = writeGzipBlock(compressedBlock.getCompressedSize(), bytesToCompress, crc32.getValue(),
+                compressedBlock.getCompressedBuffer(), codec);
+
+        // Call out to the indexer if it exists
+        if (indexer != null) {
+            indexer.addGzipBlock(mBlockAddress, bytesToCompress);
+        }
+        mBlockAddress += totalBlockSize;
+    }
+
+    public static CompressedBlock deflateBlock(Deflater deflater, Deflater noCompressionDeflater, CRC32 crc32,
+                                               byte[] compressedBuffer, int bytesToCompress, byte[] uncompressedBuffer) {
+        if (bytesToCompress == 0) {
+            return new CompressedBlock(0,0, new byte[0]);
+        }
         // Compress the input
         deflater.reset();
         deflater.setInput(uncompressedBuffer, 0, bytesToCompress);
@@ -412,25 +457,19 @@ public class BlockCompressedOutputStream
         crc32.reset();
         crc32.update(uncompressedBuffer, 0, bytesToCompress);
 
-        final int totalBlockSize = writeGzipBlock(compressedSize, bytesToCompress, crc32.getValue());
-        assert(bytesToCompress <= numUncompressedBytes);
+        return new CompressedBlock(compressedSize, bytesToCompress, compressedBuffer);
+    }
 
-        // Call out to the indexer if it exists
-        if (indexer != null) {
-            indexer.addGzipBlock(mBlockAddress, numUncompressedBytes);
-        }
-
-        // Clear out from uncompressedBuffer the data that was written
-        numUncompressedBytes = 0;
-        mBlockAddress += totalBlockSize;
-        return totalBlockSize;
+    private CompressedBlock deflateBlock(int bytesToCompress, byte[] uncompressedBuffer, byte[] compressedBuffer) {
+        return deflateBlock(deflater, noCompressionDeflater, crc32, compressedBuffer, bytesToCompress, uncompressedBuffer);
     }
 
     /**
      * Writes the entire gzip block, assuming the compressed data is stored in compressedBuffer
      * @return  size of gzip block that was written.
      */
-    private int writeGzipBlock(final int compressedSize, final int uncompressedSize, final long crc) {
+    public static int writeGzipBlock(final int compressedSize, final int uncompressedSize, final long crc, final byte[] compressedBuffer,
+                              BinaryCodec codec) {
         // Init gzip header
         codec.writeByte(BlockCompressedStreamConstants.GZIP_ID1);
         codec.writeByte(BlockCompressedStreamConstants.GZIP_ID2);
