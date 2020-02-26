@@ -121,6 +121,11 @@ public class Defaults {
      */
     public static final ReadingType READING_TYPE;
 
+    /**
+     * AsyncBlockCompressedOutputStream asynchronous write.
+     * Default = true.
+     */
+    public static final boolean USE_ASYNC_COMPRESSED_OUTPUT_STREAM;
 
     public static final String SAMJDK_PREFIX = "samjdk.";
     static {
@@ -146,6 +151,7 @@ public class Defaults {
         SAM_FLAG_FIELD_FORMAT = SamFlagField.valueOf(getStringProperty("sam_flag_field_format", SamFlagField.DECIMAL.name()));
         SRA_LIBRARIES_DOWNLOAD = getBooleanProperty("sra_libraries_download", false);
         DISABLE_SNAPPY_COMPRESSOR = getBooleanProperty(DISABLE_SNAPPY_PROPERTY_NAME, false);
+        USE_ASYNC_COMPRESSED_OUTPUT_STREAM = getBooleanProperty("use_async_compressed_output_stream", false);
 
         READING_TYPE = ReadingType.of(USE_SEQUENTIAL_IO_READ_FOR_SAMTOOLS, USE_ASYNC_IO_READ_FOR_SAMTOOLS);
     }
@@ -172,6 +178,7 @@ public class Defaults {
         result.put("CUSTOM_READER_FACTORY", CUSTOM_READER_FACTORY);
         result.put("SAM_FLAG_FIELD_FORMAT", SAM_FLAG_FIELD_FORMAT);
         result.put("DISABLE_SNAPPY_COMPRESSOR", DISABLE_SNAPPY_COMPRESSOR);
+        result.put("USE_ASYNC_COMPRESSED_OUTPUT_STREAM", USE_ASYNC_COMPRESSED_OUTPUT_STREAM);
         return Collections.unmodifiableSortedMap(result);
     }
 
