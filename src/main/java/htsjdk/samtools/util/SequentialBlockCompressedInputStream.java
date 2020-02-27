@@ -19,6 +19,9 @@ import java.util.concurrent.*;
 import static htsjdk.samtools.util.BlockCompressedStreamConstants.MAX_COMPRESSED_BLOCK_SIZE;
 
 /**
+ * Sequential read-ahead implementation of {@link htsjdk.samtools.util.BlockCompressedInputStream}.
+ *
+ * Asynchronous reading with a multithreaded unzip operation
  */
 public class SequentialBlockCompressedInputStream extends BlockCompressedInputStream {
 
@@ -120,14 +123,22 @@ public class SequentialBlockCompressedInputStream extends BlockCompressedInputSt
         }
     }
 
+    /**
+     * Async producer prepares data for reading
+     */
     private static class SequentialReadingProducer {
 
         private final ExecutorService readerExecutor;
         private final ReadingTask producerTask;
         private final int QUEUE_CAPACITY = Runtime.getRuntime().availableProcessors() * 2;
-        private final int UNZIP_THREADS = Runtime.getRuntime().availableProcessors();
+        private final int UNZIP_THREADS = countCompressingThread();
         private final int NUMBER_OF_BUFFERS = QUEUE_CAPACITY + UNZIP_THREADS * 2 + 2;
         private final BlockingQueue<Future<DecompressedBlock>> resultQueue = new ArrayBlockingQueue<>(QUEUE_CAPACITY);
+
+        private static int countCompressingThread() {
+            return Runtime.getRuntime().availableProcessors();
+            //return (availableProcessors - 2 <= 1) ? 2 : availableProcessors - 2;
+        }
 
         public static SequentialReadingProducer makeProducerForSeekableStream(SeekableStream file, final InflaterFactory inflaterFactory) {
             return new SequentialReadingProducer(file, inflaterFactory);
@@ -197,7 +208,11 @@ public class SequentialBlockCompressedInputStream extends BlockCompressedInputSt
                 this.nBuffers = nBuffers;
                 this.processBuffers = makeTempBuffers(this.nBuffers, inflaterFactory);
 
-                unzipExecutor = Executors.newFixedThreadPool(nUnzipThread);
+                unzipExecutor = Executors.newFixedThreadPool(nUnzipThread, runnable -> {
+                    Thread thread = Executors.defaultThreadFactory().newThread(runnable);
+                    thread.setDaemon(true);
+                    return thread;
+                });
             }
 
             public void close() throws IOException, InterruptedException {
@@ -208,6 +223,12 @@ public class SequentialBlockCompressedInputStream extends BlockCompressedInputSt
                 unzipExecutor.shutdown();
             }
 
+            /**
+             * Make resusable buffers for unzipping
+             * @param nBuffers
+             * @param inflaterFactory
+             * @return
+             */
             private ProcessBuffer[] makeTempBuffers(int nBuffers, final InflaterFactory inflaterFactory) {
                 ProcessBuffer[] buffers = new ProcessBuffer[nBuffers];
                 for (int i = 0; i < nBuffers; i++) {
@@ -229,6 +250,11 @@ public class SequentialBlockCompressedInputStream extends BlockCompressedInputSt
                 return BlockCompressedInputStream.readBytes(pStream, pFile, buffer, offset, length);
             }
 
+            /**
+             * Synchronous reading from file or stream
+             * @param processBuffers
+             * @return
+             */
             private ReadingResultBuffer processNextBlockForAsync(ProcessBuffer processBuffers) {
                 long blockAddress = mOffset;
                 try {
@@ -260,6 +286,11 @@ public class SequentialBlockCompressedInputStream extends BlockCompressedInputSt
                 }
             }
 
+            /**
+             * Unzip operation for buffer
+             * @param readingResult
+             * @return
+             */
             private DecompressedBlock unzip(ReadingResultBuffer readingResult) {
                 try {
                     ProcessBuffer processBuffer = readingResult.processBuffer;

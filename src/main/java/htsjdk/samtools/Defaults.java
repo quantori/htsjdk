@@ -29,6 +29,7 @@ public class Defaults {
     public static final boolean USE_ASYNC_IO_READ_FOR_SAMTOOLS;
 
     /** Should sequential read I/O be used where supported by the samtools package (one thread per file).
+     * It doesn't support seek operation
      *  Default = false.
      */
     public static final boolean USE_SEQUENTIAL_IO_READ_FOR_SAMTOOLS;
@@ -115,6 +116,9 @@ public class Defaults {
      */
     public static final boolean DISABLE_SNAPPY_COMPRESSOR;
 
+    /**
+     * The type of reading algorithm (Default, Async, Sequential)
+     */
     public static final ReadingType READING_TYPE;
 
 

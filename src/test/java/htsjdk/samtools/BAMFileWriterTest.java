@@ -226,7 +226,7 @@ public class BAMFileWriterTest extends HtsjdkTest {
         originalSAMRecord.setBaseQualities(SAMRecord.NULL_QUALS);
 
         final ByteArrayOutputStream baos = new ByteArrayOutputStream();
-        try (final BAMFileWriter writer = new BAMFileWriter(baos, null)) {
+        try (final BAMFileWriter writer = new BAMFileWriter(baos, null, false)) {
             writer.setHeader(header);
             writer.addAlignment(originalSAMRecord);
         }
@@ -249,7 +249,7 @@ public class BAMFileWriterTest extends HtsjdkTest {
 
         //encode as BAM into ByteArray
         final ByteArrayOutputStream baos = new ByteArrayOutputStream();
-        try (final BAMFileWriter writer = new BAMFileWriter(baos, null)) {
+        try (final BAMFileWriter writer = new BAMFileWriter(baos, null, false)) {
             writer.setHeader(builder.getHeader());
             builder.getRecords().forEach(writer::addAlignment);
         }
@@ -522,7 +522,7 @@ public class BAMFileWriterTest extends HtsjdkTest {
 
         //encode as BAM into ByteArray
         final ByteArrayOutputStream baos = new ByteArrayOutputStream();
-        try (final BAMFileWriter writer = new BAMFileWriter(baos, null)) {
+        try (final BAMFileWriter writer = new BAMFileWriter(baos, null, false)) {
             writer.setHeader(builder.getHeader());
             builder.forEach(r -> r.setAttribute("xx", "Testing123"));
             builder.forEach(writer::addAlignment);
