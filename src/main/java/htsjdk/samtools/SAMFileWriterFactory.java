@@ -59,6 +59,7 @@ public class SAMFileWriterFactory implements Cloneable {
     private SamFlagField samFlagFieldOutput = SamFlagField.NONE;
     private Integer maxRecordsInRam = null;
     private DeflaterFactory deflaterFactory = BlockCompressedOutputStream.getDefaultDeflaterFactory();
+    private static boolean asyncCompressedOutputStream = Defaults.USE_ASYNC_COMPRESSED_OUTPUT_STREAM;
 
     /** simple constructor */
     public SAMFileWriterFactory() {
@@ -241,6 +242,17 @@ public class SAMFileWriterFactory implements Cloneable {
     }
 
     /**
+     * Sets the asynchronous implementation of BlockCompressedOutputStream for BAMFileWriter
+     * @see htsjdk.samtools.util.output.async.AsyncBlockCompressedOutputStream
+     *
+     * Default value: true
+     * @see Defaults#USE_ASYNC_COMPRESSED_OUTPUT_STREAM
+     */
+    public static void setAsyncCompressedOutputStream(boolean compressedOutputStream) {
+        asyncCompressedOutputStream = compressedOutputStream;
+    }
+
+    /**
      * Create a BAMFileWriter that is ready to receive SAMRecords.  Uses default compression level.
      *
      * @param header     entire header. Sort order is determined by the sortOrder property of this arg.
@@ -292,7 +304,7 @@ public class SAMFileWriterFactory implements Cloneable {
             }
             OutputStream os = IOUtil.maybeBufferOutputStream(Files.newOutputStream(outputPath), bufferSize);
             if (createMd5File) os = new Md5CalculatingOutputStream(os, IOUtil.addExtension(outputPath,".md5"));
-            final BAMFileWriter ret = new BAMFileWriter(os, outputPath.toUri().toString(), compressionLevel, deflaterFactory);
+            final BAMFileWriter ret = new BAMFileWriter(os, outputPath.toUri().toString(), compressionLevel, deflaterFactory, asyncCompressedOutputStream);
             final boolean createIndex = this.createIndex && IOUtil.isRegularPath(outputPath);
             if (this.createIndex && !createIndex) {
                 log.warn("Cannot create index for BAM because output file is not a regular file: " + outputPath.toUri());
@@ -389,7 +401,7 @@ public class SAMFileWriterFactory implements Cloneable {
      */
 
     public SAMFileWriter makeBAMWriter(final SAMFileHeader header, final boolean presorted, final OutputStream stream) {
-        return initWriter(header, presorted, new BAMFileWriter(stream, (File)null, this.getCompressionLevel(), this.deflaterFactory));
+        return initWriter(header, presorted, new BAMFileWriter(stream, (File)null, this.getCompressionLevel(), this.deflaterFactory, asyncCompressedOutputStream));
     }
 
     /**

@@ -28,6 +28,8 @@ import htsjdk.samtools.util.BlockCompressedOutputStream;
 import htsjdk.samtools.util.FileExtensions;
 import htsjdk.samtools.util.IOUtil;
 import htsjdk.samtools.util.RuntimeIOException;
+import htsjdk.samtools.util.output.AbstractBlockCompressedOutputStream;
+import htsjdk.samtools.util.output.async.AsyncBlockCompressedOutputStream;
 import htsjdk.samtools.util.zip.DeflaterFactory;
 
 import java.io.File;
@@ -45,43 +47,51 @@ public class BAMFileWriter extends SAMFileWriterImpl {
 
     private final BinaryCodec outputBinaryCodec;
     private BAMRecordCodec bamRecordCodec = null;
-    private final BlockCompressedOutputStream blockCompressedOutputStream;
+    private final AbstractBlockCompressedOutputStream blockCompressedOutputStream;
     private BAMIndexer bamIndexer = null;
 
-    protected BAMFileWriter(final File path) {
-        blockCompressedOutputStream = new BlockCompressedOutputStream(path);
+    protected BAMFileWriter(final File path, boolean asyncCompressedOutputStream) {
+        blockCompressedOutputStream = asyncCompressedOutputStream ? new AsyncBlockCompressedOutputStream(path) :
+                new BlockCompressedOutputStream(path);
         outputBinaryCodec = new BinaryCodec(blockCompressedOutputStream);
         outputBinaryCodec.setOutputFileName(path.getAbsolutePath());
     }
 
-    protected BAMFileWriter(final File path, final int compressionLevel) {
-        blockCompressedOutputStream = new BlockCompressedOutputStream(path, compressionLevel);
+    protected BAMFileWriter(final File path, final int compressionLevel, boolean asyncCompressedOutputStream) {
+        blockCompressedOutputStream = asyncCompressedOutputStream ? new AsyncBlockCompressedOutputStream(path, compressionLevel) :
+                new BlockCompressedOutputStream(path, compressionLevel);
         outputBinaryCodec = new BinaryCodec(blockCompressedOutputStream);
         outputBinaryCodec.setOutputFileName(path.getAbsolutePath());
     }
 
-    protected BAMFileWriter(final OutputStream os, final File file) {
-        blockCompressedOutputStream = new BlockCompressedOutputStream(os, file);
+    protected BAMFileWriter(final OutputStream os, final File file, boolean asyncCompressedOutputStream) {
+        blockCompressedOutputStream = asyncCompressedOutputStream ? new AsyncBlockCompressedOutputStream(os, IOUtil.toPath(file)) :
+                new BlockCompressedOutputStream(os, file);
         outputBinaryCodec = new BinaryCodec(blockCompressedOutputStream);
         outputBinaryCodec.setOutputFileName(getPathString(file));
     }
 
-    protected BAMFileWriter(final OutputStream os, final File file, final int compressionLevel) {
-        blockCompressedOutputStream = new BlockCompressedOutputStream(os, file, compressionLevel);
+    protected BAMFileWriter(final OutputStream os, final File file, final int compressionLevel, boolean asyncCompressedOutputStream) {
+        blockCompressedOutputStream = asyncCompressedOutputStream ? new AsyncBlockCompressedOutputStream(os, IOUtil.toPath(file),
+                compressionLevel) : new BlockCompressedOutputStream(os, file, compressionLevel);
         outputBinaryCodec = new BinaryCodec(blockCompressedOutputStream);
         outputBinaryCodec.setOutputFileName(getPathString(file));
     }
 
-    protected BAMFileWriter(final OutputStream os, final File file, final int compressionLevel, final DeflaterFactory deflaterFactory) {
-        blockCompressedOutputStream = new BlockCompressedOutputStream(os, file, compressionLevel, deflaterFactory);
+    protected BAMFileWriter(final OutputStream os, final File file, final int compressionLevel, final DeflaterFactory deflaterFactory,
+                            boolean asyncCompressedOutputStream) {
+        blockCompressedOutputStream = asyncCompressedOutputStream ? new AsyncBlockCompressedOutputStream(os, IOUtil.toPath(file),
+                compressionLevel, deflaterFactory) : new BlockCompressedOutputStream(os, file, compressionLevel, deflaterFactory);
         outputBinaryCodec = new BinaryCodec(blockCompressedOutputStream);
         outputBinaryCodec.setOutputFileName(getPathString(file));
     }
 
-    protected BAMFileWriter(final OutputStream os, final String absoluteFilename, final int compressionLevel, final DeflaterFactory deflaterFactory) {
-      blockCompressedOutputStream = new BlockCompressedOutputStream(os, (Path)null, compressionLevel, deflaterFactory);
-      outputBinaryCodec = new BinaryCodec(blockCompressedOutputStream);
-      outputBinaryCodec.setOutputFileName(absoluteFilename);
+    protected BAMFileWriter(final OutputStream os, final String absoluteFilename, final int compressionLevel,
+                            final DeflaterFactory deflaterFactory, boolean asyncCompressedOutputStream) {
+        blockCompressedOutputStream = asyncCompressedOutputStream ? new AsyncBlockCompressedOutputStream(os, null, compressionLevel,
+                deflaterFactory) : new BlockCompressedOutputStream(os, (Path) null, compressionLevel, deflaterFactory);
+        outputBinaryCodec = new BinaryCodec(blockCompressedOutputStream);
+        outputBinaryCodec.setOutputFileName(absoluteFilename);
     }
 
   private void prepareToWriteAlignments() {
