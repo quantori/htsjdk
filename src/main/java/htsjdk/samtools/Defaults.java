@@ -117,15 +117,14 @@ public class Defaults {
     public static final boolean DISABLE_SNAPPY_COMPRESSOR;
 
     /**
-     * The type of reading algorithm (Default, Async, Sequential)
-     */
-    public static final ReadingType READING_TYPE;
-
-    /**
      * AsyncBlockCompressedOutputStream asynchronous write.
      * Default = true.
      */
     public static final boolean USE_ASYNC_COMPRESSED_OUTPUT_STREAM;
+    /**
+     * The type of reading algorithm (Default, Async, Sequential)
+     */
+    public static final ReadingType READING_TYPE;
 
     public static final String SAMJDK_PREFIX = "samjdk.";
     static {

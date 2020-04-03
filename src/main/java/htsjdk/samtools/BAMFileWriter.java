@@ -23,7 +23,11 @@
  */
 package htsjdk.samtools;
 
-import htsjdk.samtools.util.*;
+import htsjdk.samtools.util.BinaryCodec;
+import htsjdk.samtools.util.BlockCompressedOutputStream;
+import htsjdk.samtools.util.FileExtensions;
+import htsjdk.samtools.util.IOUtil;
+import htsjdk.samtools.util.RuntimeIOException;
 import htsjdk.samtools.util.output.AbstractBlockCompressedOutputStream;
 import htsjdk.samtools.util.output.async.AsyncBlockCompressedOutputStream;
 import htsjdk.samtools.util.zip.DeflaterFactory;

@@ -28,7 +28,6 @@ public class AsyncBlockCompressedOutputStream extends AbstractBlockCompressedOut
         return thread;
     });
 
-
     private static final Void NOTHING = null;
     private static final int BLOCKS_PACK_SIZE = 16 * COMPRESSING_THREADS;
 
@@ -128,8 +127,8 @@ public class AsyncBlockCompressedOutputStream extends AbstractBlockCompressedOut
     }
 
     private static int countCompressingThread() {
-        return 6;//Runtime.getRuntime().availableProcessors();
-        //return (availableProcessors - 2 <= 1) ? 2 : (availableProcessors - 2);
+        int availableProcessors = Runtime.getRuntime().availableProcessors();
+        return (availableProcessors <= 2) ? 2 : (availableProcessors - 2);
     }
 
     /**
