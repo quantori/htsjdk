@@ -155,7 +155,7 @@ public abstract class SamReaderFactory {
      * If this methods is not called, this flag will default to the value of {@link Defaults#USE_ASYNC_IO_READ_FOR_SAMTOOLS}.
      * Note that this option may not be applicable to all readers returned from this factory.
      * Returns the factory itself. */
-    abstract public SamReaderFactory setUseAsyncIo(final boolean asynchronousIO);
+    abstract public SamReaderFactory setReadingType(final Defaults.ReadingType readingType);
 
     private static SamReaderFactoryImpl DEFAULT =
             new SamReaderFactoryImpl(Option.DEFAULTS, defaultValidationStringency,
@@ -186,7 +186,7 @@ public abstract class SamReaderFactory {
         private final static Log LOG = Log.getInstance(SamReaderFactory.class);
         private final EnumSet<Option> enabledOptions;
         private ValidationStringency validationStringency;
-        private boolean asynchronousIO = Defaults.USE_ASYNC_IO_READ_FOR_SAMTOOLS;
+        private Defaults.ReadingType readingType = Defaults.READING_TYPE;
         private SAMRecordFactory samRecordFactory;
         private CustomReaderFactory customReaderFactory;
         private CRAMReferenceSource referenceSource;
@@ -302,8 +302,8 @@ public abstract class SamReaderFactory {
         }
 
         @Override
-        public SamReaderFactory setUseAsyncIo(final boolean asynchronousIO){
-            this.asynchronousIO = asynchronousIO;
+        public SamReaderFactory setReadingType(final Defaults.ReadingType readingType){
+            this.readingType = readingType;
             return this;
         }
 
@@ -337,7 +337,7 @@ public abstract class SamReaderFactory {
                                 IOUtil.maybeBufferedSeekableStream(data.asUnbufferedSeekableStream()),
                                 bufferedIndexStream,
                                 false,
-                                asynchronousIO,
+                                readingType,
                                 validationStringency,
                                 this.samRecordFactory,
                                 this.inflaterFactory
@@ -380,7 +380,7 @@ public abstract class SamReaderFactory {
                             if (null == sourceSeekable || null == indexSeekable) {
                                 // not seekable.
                                 // it's OK that we consumed a bit of the stream already, this ctor expects it.
-                                primitiveSamReader = new BAMFileReader(bufferedStream, indexFile, false, asynchronousIO,
+                                primitiveSamReader = new BAMFileReader(bufferedStream, indexFile, false, readingType,
                                         validationStringency, this.samRecordFactory, this.inflaterFactory);
                             } else {
                                 // seekable.
@@ -388,13 +388,13 @@ public abstract class SamReaderFactory {
                                 // and read a bit from, and that form of the ctor expects the stream to start at 0.
                                 sourceSeekable.seek(0);
                                 primitiveSamReader = new BAMFileReader(
-                                        sourceSeekable, indexSeekable, false, asynchronousIO, validationStringency,
+                                        sourceSeekable, indexSeekable, false, readingType, validationStringency,
                                         this.samRecordFactory, this.inflaterFactory);
                             }
                         } else {
                             bufferedStream.close();
                             primitiveSamReader = new BAMFileReader(
-                                sourceFile, indexFile, false, asynchronousIO,
+                                sourceFile, indexFile, false, readingType,
                                 validationStringency, this.samRecordFactory, this.inflaterFactory);
                         }
                     } else if (BlockCompressedInputStream.isValidFile(bufferedStream)) {

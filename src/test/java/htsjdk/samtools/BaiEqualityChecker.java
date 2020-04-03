@@ -48,7 +48,7 @@ public class BaiEqualityChecker {
         SamReaderFactory readerFactory =
                 SamReaderFactory.makeDefault()
                         .setOption(SamReaderFactory.Option.EAGERLY_DECODE, false)
-                        .setUseAsyncIo(false);
+                        .setReadingType(Defaults.ReadingType.Default);
         SAMFileHeader header = readerFactory.getFileHeader(bamFile);
         SAMSequenceDictionary dict = header.getSequenceDictionary();
         AbstractBAMFileIndex bai1 = new CachingBAMFileIndex(baiFile1.toFile(), dict);

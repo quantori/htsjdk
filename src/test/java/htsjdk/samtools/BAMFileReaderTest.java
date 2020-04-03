@@ -1,7 +1,7 @@
 package htsjdk.samtools;
 
 import htsjdk.HtsjdkTest;
-import htsjdk.samtools.seekablestream.ByteArraySeekableStream;
+import htsjdk.samtools.Defaults.ReadingType;
 import htsjdk.samtools.util.CloseableIterator;
 import htsjdk.samtools.util.CoordMath;
 import org.testng.Assert;
@@ -10,7 +10,6 @@ import org.testng.annotations.Test;
 
 import java.io.File;
 import java.io.IOException;
-import java.util.List;
 
 public class BAMFileReaderTest extends HtsjdkTest {
     private final static File bamFile = new File("src/test/resources/htsjdk/samtools/BAMFileIndexTest/index_test.bam");
@@ -30,10 +29,10 @@ public class BAMFileReaderTest extends HtsjdkTest {
 
     @BeforeTest
     public void init() throws IOException {
-        bamFileReaderBAI = new BAMFileReader(bamFile, baiFileIndex, true, false, ValidationStringency.DEFAULT_STRINGENCY, DefaultSAMRecordFactory.getInstance());
-        bamFileReaderCSI = new BAMFileReader(bamFile, csiFileIndex, true, false, ValidationStringency.DEFAULT_STRINGENCY, DefaultSAMRecordFactory.getInstance());
-        bamFileReaderWrong = new BAMFileReader(bamFile, iiiFileIndex, true, false, ValidationStringency.DEFAULT_STRINGENCY, DefaultSAMRecordFactory.getInstance());
-        bamFileReaderNull = new BAMFileReader(bamFile, null, true, false, ValidationStringency.DEFAULT_STRINGENCY, DefaultSAMRecordFactory.getInstance());
+        bamFileReaderBAI = new BAMFileReader(bamFile, baiFileIndex, true, ReadingType.Default, ValidationStringency.DEFAULT_STRINGENCY, DefaultSAMRecordFactory.getInstance());
+        bamFileReaderCSI = new BAMFileReader(bamFile, csiFileIndex, true, ReadingType.Default, ValidationStringency.DEFAULT_STRINGENCY, DefaultSAMRecordFactory.getInstance());
+        bamFileReaderWrong = new BAMFileReader(bamFile, iiiFileIndex, true, ReadingType.Default, ValidationStringency.DEFAULT_STRINGENCY, DefaultSAMRecordFactory.getInstance());
+        bamFileReaderNull = new BAMFileReader(bamFile, null, true, ReadingType.Default, ValidationStringency.DEFAULT_STRINGENCY, DefaultSAMRecordFactory.getInstance());
     }
 
     @Test

@@ -24,12 +24,9 @@
 package htsjdk.samtools;
 
 import htsjdk.HtsjdkTest;
+import htsjdk.samtools.Defaults.ReadingType;
 import htsjdk.samtools.metrics.MetricsFile;
-import htsjdk.samtools.util.BinaryCodec;
-import htsjdk.samtools.util.BlockCompressedInputStream;
-import htsjdk.samtools.util.CloseableIterator;
-import htsjdk.samtools.util.FileExtensions;
-import htsjdk.samtools.util.SequenceUtil;
+import htsjdk.samtools.util.*;
 import org.testng.Assert;
 import org.testng.annotations.DataProvider;
 import org.testng.annotations.Test;
@@ -229,12 +226,12 @@ public class BAMFileWriterTest extends HtsjdkTest {
         originalSAMRecord.setBaseQualities(SAMRecord.NULL_QUALS);
 
         final ByteArrayOutputStream baos = new ByteArrayOutputStream();
-        try (final BAMFileWriter writer = new BAMFileWriter(baos, null)) {
+        try (final BAMFileWriter writer = new BAMFileWriter(baos, null, false)) {
             writer.setHeader(header);
             writer.addAlignment(originalSAMRecord);
         }
 
-        final BAMFileReader reader = new BAMFileReader(new ByteArrayInputStream(baos.toByteArray()), null, true, false, ValidationStringency.SILENT, new DefaultSAMRecordFactory());
+        final BAMFileReader reader = new BAMFileReader(new ByteArrayInputStream(baos.toByteArray()), null, true, ReadingType.Default, ValidationStringency.SILENT, new DefaultSAMRecordFactory());
         final CloseableIterator<SAMRecord> iterator = reader.getIterator();
         iterator.hasNext();
         final SAMRecord recordFromBAM = iterator.next();
@@ -252,13 +249,13 @@ public class BAMFileWriterTest extends HtsjdkTest {
 
         //encode as BAM into ByteArray
         final ByteArrayOutputStream baos = new ByteArrayOutputStream();
-        try (final BAMFileWriter writer = new BAMFileWriter(baos, null)) {
+        try (final BAMFileWriter writer = new BAMFileWriter(baos, null, false)) {
             writer.setHeader(builder.getHeader());
             builder.getRecords().forEach(writer::addAlignment);
         }
 
         //read from ByteArray
-        final BAMFileReader reader = new BAMFileReader(new ByteArrayInputStream(baos.toByteArray()), null, false, false, ValidationStringency.SILENT, new DefaultSAMRecordFactory());
+        final BAMFileReader reader = new BAMFileReader(new ByteArrayInputStream(baos.toByteArray()), null, false, ReadingType.Default, ValidationStringency.SILENT, new DefaultSAMRecordFactory());
         final CloseableIterator<SAMRecord> iterator = reader.getIterator();
         iterator.hasNext();
         final SAMRecord recordFromBAM = iterator.next();
@@ -525,14 +522,14 @@ public class BAMFileWriterTest extends HtsjdkTest {
 
         //encode as BAM into ByteArray
         final ByteArrayOutputStream baos = new ByteArrayOutputStream();
-        try (final BAMFileWriter writer = new BAMFileWriter(baos, null)) {
+        try (final BAMFileWriter writer = new BAMFileWriter(baos, null, false)) {
             writer.setHeader(builder.getHeader());
             builder.forEach(r -> r.setAttribute("xx", "Testing123"));
             builder.forEach(writer::addAlignment);
         }
 
         //read from ByteArray
-        final BAMFileReader reader = new BAMFileReader(new ByteArrayInputStream(baos.toByteArray()), null, false, false, ValidationStringency.SILENT, new DefaultSAMRecordFactory());
+        final BAMFileReader reader = new BAMFileReader(new ByteArrayInputStream(baos.toByteArray()), null, false, ReadingType.Default, ValidationStringency.SILENT, new DefaultSAMRecordFactory());
 
         for (final SAMRecord rec : (Iterable<SAMRecord>) reader::getIterator) {
 

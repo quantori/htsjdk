@@ -28,6 +28,12 @@ public class Defaults {
      */
     public static final boolean USE_ASYNC_IO_READ_FOR_SAMTOOLS;
 
+    /** Should sequential read I/O be used where supported by the samtools package (one thread per file).
+     * It doesn't support seek operation
+     *  Default = false.
+     */
+    public static final boolean USE_SEQUENTIAL_IO_READ_FOR_SAMTOOLS;
+
     /** Should asynchronous write I/O be used where supported by the samtools package (one thread per file).
      *  Default = false.
      */
@@ -110,11 +116,21 @@ public class Defaults {
      */
     public static final boolean DISABLE_SNAPPY_COMPRESSOR;
 
+    /**
+     * AsyncBlockCompressedOutputStream asynchronous write.
+     * Default = true.
+     */
+    public static final boolean USE_ASYNC_COMPRESSED_OUTPUT_STREAM;
+    /**
+     * The type of reading algorithm (Default, Async, Sequential)
+     */
+    public static final ReadingType READING_TYPE;
 
     public static final String SAMJDK_PREFIX = "samjdk.";
     static {
         CREATE_INDEX = getBooleanProperty("create_index", false);
         CREATE_MD5 = getBooleanProperty("create_md5", false);
+        USE_SEQUENTIAL_IO_READ_FOR_SAMTOOLS = getBooleanProperty("use_sequential_io_read_samtools", false);
         USE_ASYNC_IO_READ_FOR_SAMTOOLS = getBooleanProperty("use_async_io_read_samtools", false);
         USE_ASYNC_IO_WRITE_FOR_SAMTOOLS = getBooleanProperty("use_async_io_write_samtools", false);
         USE_ASYNC_IO_WRITE_FOR_TRIBBLE = getBooleanProperty("use_async_io_write_tribble", false);
@@ -134,6 +150,9 @@ public class Defaults {
         SAM_FLAG_FIELD_FORMAT = SamFlagField.valueOf(getStringProperty("sam_flag_field_format", SamFlagField.DECIMAL.name()));
         SRA_LIBRARIES_DOWNLOAD = getBooleanProperty("sra_libraries_download", false);
         DISABLE_SNAPPY_COMPRESSOR = getBooleanProperty(DISABLE_SNAPPY_PROPERTY_NAME, false);
+        USE_ASYNC_COMPRESSED_OUTPUT_STREAM = getBooleanProperty("use_async_compressed_output_stream", false);
+
+        READING_TYPE = ReadingType.of(USE_SEQUENTIAL_IO_READ_FOR_SAMTOOLS, USE_ASYNC_IO_READ_FOR_SAMTOOLS);
     }
 
     /**
@@ -145,6 +164,7 @@ public class Defaults {
         final SortedMap<String, Object> result = new TreeMap<>();
         result.put("CREATE_INDEX", CREATE_INDEX);
         result.put("CREATE_MD5", CREATE_MD5);
+        result.put("USE_SEQUENTIAL_IO_READ_FOR_SAMTOOLS", USE_SEQUENTIAL_IO_READ_FOR_SAMTOOLS);
         result.put("USE_ASYNC_IO_READ_FOR_SAMTOOLS", USE_ASYNC_IO_READ_FOR_SAMTOOLS);
         result.put("USE_ASYNC_IO_WRITE_FOR_SAMTOOLS", USE_ASYNC_IO_WRITE_FOR_SAMTOOLS);
         result.put("USE_ASYNC_IO_WRITE_FOR_TRIBBLE", USE_ASYNC_IO_WRITE_FOR_TRIBBLE);
@@ -157,6 +177,7 @@ public class Defaults {
         result.put("CUSTOM_READER_FACTORY", CUSTOM_READER_FACTORY);
         result.put("SAM_FLAG_FIELD_FORMAT", SAM_FLAG_FIELD_FORMAT);
         result.put("DISABLE_SNAPPY_COMPRESSOR", DISABLE_SNAPPY_COMPRESSOR);
+        result.put("USE_ASYNC_COMPRESSED_OUTPUT_STREAM", USE_ASYNC_COMPRESSED_OUTPUT_STREAM);
         return Collections.unmodifiableSortedMap(result);
     }
 
@@ -208,5 +229,18 @@ public class Defaults {
             }
         });
         return maybeFile.orElse(null);
+    }
+
+    public enum ReadingType {
+        Default, Async, Sequential;
+
+        private static ReadingType of(boolean sequentialProperty, boolean asyncProperty) {
+            if (sequentialProperty) {
+                return Sequential;
+            } else if (asyncProperty) {
+                return Async;
+            }
+            return Default;
+        }
     }
 }
