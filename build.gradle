@@ -13,7 +13,7 @@ plugins {
     id 'com.palantir.git-version' version '0.11.0'
     id 'com.github.johnrengelman.shadow' version '4.0.4'
     id 'com.github.maiflai.scalatest' version '0.23'
-    id 'com.github.spotbugs' version '1.6.9'
+    id 'com.github.spotbugs' version '4.5.0'
 }
 
 repositories {
@@ -171,7 +171,7 @@ spotbugs {
     excludeFilter = file('gradle/spotbugs-exclude.xml')
 }
 
-tasks.withType(com.github.spotbugs.SpotBugsTask) {
+spotbugsMain {
     reports {
         xml.enabled = false
         html.enabled = true
